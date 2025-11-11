@@ -77,11 +77,14 @@ const NOTE_POOL: NoteDefinition[] = [
   ...annotateNotes("treble", TREBLE_NOTES),
 ];
 
+const DEFAULT_NOTE = NOTE_POOL[0];
+
 const UI_STRINGS: Record<
   Language,
   {
     title: string;
     tagline: string;
+    description: string;
     prompt: string;
     settings: string;
     language: string;
@@ -100,7 +103,8 @@ const UI_STRINGS: Record<
 > = {
   en: {
     title: "Get Sheet Done",
-    tagline:
+    tagline: "Staff Reading Trainer",
+    description:
       "Build instant recognition with randomized treble & bass clef drills.",
     prompt: "Which answer matches this note?",
     settings: "Settings",
@@ -124,7 +128,8 @@ const UI_STRINGS: Record<
   },
   zh: {
     title: "Get Sheet Done",
-    tagline: "随机高音与低音谱号练习，快速锁定正确音名。",
+    tagline: "五线谱阅读练习",
+    description: "随机高音与低音谱号练习，快速锁定正确音名。",
     prompt: "这个音符对应什么？",
     settings: "设置",
     language: "语言",
@@ -234,6 +239,24 @@ const buildChoices = (
   return shuffle([correct, ...distractors]);
 };
 
+const buildFallbackChoices = (
+  note: NoteDefinition,
+  mode: AnswerMode,
+  language: Language,
+): string[] => {
+  const correct = getAnswer(note, mode, language);
+  if (mode === "piano") {
+    return [correct];
+  }
+
+  const allValues = Array.from(
+    new Set(NOTE_POOL.map((item) => getAnswer(item, mode, language))),
+  );
+  const alternatives = allValues.filter((value) => value !== correct);
+
+  return [correct, ...alternatives.slice(0, 3)];
+};
+
 const shuffle = (values: string[]) => {
   const copy = [...values];
   for (let i = copy.length - 1; i > 0; i -= 1) {
@@ -255,11 +278,10 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export default function Home() {
+  const isHydrated = useHydrated();
   const [language, setLanguage] = useState<Language>("en");
   const [answerMode, setAnswerMode] = useState<AnswerMode>("solfege");
-  const [currentNote, setCurrentNote] = useState<NoteDefinition>(() =>
-    getRandomNote(),
-  );
+  const [currentNote, setCurrentNote] = useState<NoteDefinition>(DEFAULT_NOTE);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "correct" | "incorrect">(
     "idle",
@@ -276,9 +298,22 @@ export default function Home() {
   );
 
   const choices = useMemo(
-    () => buildChoices(currentNote, answerMode, language),
-    [answerMode, currentNote, language],
+    () =>
+      isHydrated
+        ? buildChoices(currentNote, answerMode, language)
+        : buildFallbackChoices(currentNote, answerMode, language),
+    [answerMode, currentNote, language, isHydrated],
   );
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    setCurrentNote((previous) => {
+      if (previous.id === DEFAULT_NOTE.id) {
+        return getRandomNote();
+      }
+      return previous;
+    });
+  }, [isHydrated]);
 
   const goToNext = useCallback(() => {
     setCurrentNote((prev) => getRandomNote(prev?.id));
@@ -358,12 +393,12 @@ export default function Home() {
           </button>
           <div className="flex flex-col gap-2">
             <p className="text-sm uppercase tracking-[0.2em] text-blue-500">
-              {strings.title}
+              {strings.tagline}
             </p>
-            <h1 className="text-3xl font-semibold">{strings.tagline}</h1>
-            <p className="text-base text-slate-500">{strings.prompt}</p>
+            <h1 className="text-3xl font-semibold">{strings.title}</h1>
+            <p className="text-base text-slate-500">{strings.description}</p>
           </div>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <div className="mt-6 grid grid-cols-2 gap-4">
             <StatCard
               label={strings.questionLabel}
               value={`#${questionsServed}`}
@@ -445,6 +480,16 @@ export default function Home() {
       </div>
     </main>
   );
+}
+
+function useHydrated() {
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
+
+  return hydrated;
 }
 
 type StaffNoteProps = {
@@ -666,6 +711,17 @@ function SettingsModal({
             {strings.close}
           </button>
         </div>
+        <p className="mt-4 text-center text-xs text-slate-500">
+          Made by{" "}
+          <a
+            href="https://leplay.net/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-blue-600 hover:underline"
+          >
+            Leplay
+          </a>
+        </p>
       </div>
     </div>
   );
