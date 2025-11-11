@@ -468,7 +468,7 @@ function StaffNote({ noteKey, clef }: StaffNoteProps) {
     const context = renderer.getContext();
     context.setBackgroundFillStyle("transparent");
 
-    const stave = new Stave(staveX, 50, staveWidth, {
+    const stave = new Stave(staveX, 0, staveWidth, {
       spacingBetweenLinesPx: 14,
     });
     stave.addClef(clef);
