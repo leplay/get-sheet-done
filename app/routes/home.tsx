@@ -31,7 +31,7 @@ type BaseNote = Omit<NoteDefinition, "id" | "clef">;
 
 const SOLFEGE_LABELS: Record<Language, string[]> = {
   en: ["Do", "Re", "Mi", "Fa", "So", "La", "Ti"],
-  zh: ["哆", "来", "咪", "发", "唆", "拉", "西"],
+  zh: ["Do", "Re", "Mi", "Fa", "So", "La", "Si"],
 };
 
 const TREBLE_NOTES: BaseNote[] = [
@@ -77,27 +77,31 @@ const NOTE_POOL: NoteDefinition[] = [
   ...annotateNotes("treble", TREBLE_NOTES),
 ];
 
-const UI_STRINGS: Record<Language, {
-  title: string;
-  tagline: string;
-  prompt: string;
-  settings: string;
-  language: string;
-  answerMode: string;
-  answerModes: Record<AnswerMode, string>;
-  correct: string;
-  incorrect: string;
-  correctAnswerLabel: string;
-  next: string;
-  stats: string;
-  accuracy: string;
-  questionLabel: string;
-  idleHint: string;
-  close: string;
-}> = {
+const UI_STRINGS: Record<
+  Language,
+  {
+    title: string;
+    tagline: string;
+    prompt: string;
+    settings: string;
+    language: string;
+    answerMode: string;
+    answerModes: Record<AnswerMode, string>;
+    correct: string;
+    incorrect: string;
+    correctAnswerLabel: string;
+    next: string;
+    stats: string;
+    accuracy: string;
+    questionLabel: string;
+    idleHint: string;
+    close: string;
+  }
+> = {
   en: {
-    title: "Staff Reading Trainer",
-    tagline: "Build instant recognition with randomized treble & bass clef drills.",
+    title: "Get Sheet Done",
+    tagline:
+      "Build instant recognition with randomized treble & bass clef drills.",
     prompt: "Which answer matches this note?",
     settings: "Settings",
     language: "Language",
@@ -119,7 +123,7 @@ const UI_STRINGS: Record<Language, {
     close: "Close",
   },
   zh: {
-    title: "五线谱阅读练习",
+    title: "Get Sheet Done",
     tagline: "随机高音与低音谱号练习，快速锁定正确音名。",
     prompt: "这个音符对应什么？",
     settings: "设置",
@@ -145,14 +149,11 @@ const UI_STRINGS: Record<Language, {
 
 type Strings = (typeof UI_STRINGS)[Language];
 
-const ANSWER_MODE_LIST: AnswerMode[] = [
-  "solfege",
-  "letter",
-  "number",
-  "piano",
-];
+const ANSWER_MODE_LIST: AnswerMode[] = ["solfege", "letter", "number", "piano"];
 
-const WHITE_PIANO_KEYS = NOTE_POOL.reduce<{ id: string; solfegeIndex: number }[]>((keys, note) => {
+const WHITE_PIANO_KEYS = NOTE_POOL.reduce<
+  { id: string; solfegeIndex: number }[]
+>((keys, note) => {
   if (!keys.some((entry) => entry.id === note.piano)) {
     keys.push({ id: note.piano, solfegeIndex: note.solfegeIndex });
   }
@@ -176,7 +177,11 @@ const BLACK_PIANO_KEYS = [
   { id: "C#5", anchorIndex: 19 },
 ];
 
-const getAnswer = (note: NoteDefinition, mode: AnswerMode, language: Language) => {
+const getAnswer = (
+  note: NoteDefinition,
+  mode: AnswerMode,
+  language: Language,
+) => {
   switch (mode) {
     case "solfege":
       return SOLFEGE_LABELS[language][note.solfegeIndex];
@@ -240,7 +245,7 @@ const shuffle = (values: string[]) => {
 
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: "五线谱阅读练习 | Staff Reading Trainer" },
+    { title: "Get Sheet Done! - 五线谱阅读练习 | Staff Reading Trainer" },
     {
       name: "description",
       content:
@@ -356,9 +361,7 @@ export default function Home() {
               {strings.title}
             </p>
             <h1 className="text-3xl font-semibold">{strings.tagline}</h1>
-            <p className="text-base text-slate-500">
-              {strings.prompt}
-            </p>
+            <p className="text-base text-slate-500">{strings.prompt}</p>
           </div>
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
             <StatCard
@@ -522,7 +525,8 @@ function AnswerButton({
   } else if (isLosingSelection) {
     styles += " border-rose-500 bg-rose-50 text-rose-900";
   } else {
-    styles += " border-slate-200 bg-white text-slate-900 shadow-sm hover:border-blue-300";
+    styles +=
+      " border-slate-200 bg-white text-slate-900 shadow-sm hover:border-blue-300";
   }
 
   return (
@@ -544,7 +548,12 @@ type SelectorProps<T extends string> = {
   options: Array<{ value: T; label: string }>;
 };
 
-function Selector<T extends string>({ label, value, onChange, options }: SelectorProps<T>) {
+function Selector<T extends string>({
+  label,
+  value,
+  onChange,
+  options,
+}: SelectorProps<T>) {
   return (
     <label className="flex flex-1 flex-col gap-1 text-sm font-medium text-slate-600">
       {label}
@@ -628,7 +637,9 @@ function SettingsModal({
           <Selector
             label={strings.language}
             value={language}
-            onChange={(event) => onLanguageChange(event.target.value as Language)}
+            onChange={(event) =>
+              onLanguageChange(event.target.value as Language)
+            }
             options={[
               { value: "en", label: "English" },
               { value: "zh", label: "中文" },
@@ -685,7 +696,12 @@ type FeedbackBannerProps = {
   selected: string | null;
 };
 
-function FeedbackBanner({ strings, status, correctAnswer, selected }: FeedbackBannerProps) {
+function FeedbackBanner({
+  strings,
+  status,
+  correctAnswer,
+  selected,
+}: FeedbackBannerProps) {
   let message = strings.idleHint;
   let style = "bg-slate-100 text-slate-700";
 
@@ -731,7 +747,8 @@ function PianoKeyboard({
         {WHITE_PIANO_KEYS.map((key, index) => {
           const isCorrect = status !== "idle" && key.id === correctAnswer;
           const isSelected = key.id === selectedAnswer;
-          const isWrongSelection = status !== "idle" && isSelected && !isCorrect;
+          const isWrongSelection =
+            status !== "idle" && isSelected && !isCorrect;
           let keyStyles =
             "relative flex-1 rounded-xl border border-slate-300 bg-white py-14 text-center text-sm font-semibold text-slate-900 shadow";
 
