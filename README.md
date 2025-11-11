@@ -1,11 +1,11 @@
 # GET SHEET DONE
 五线谱阅读练习 / Staff Reading Trainer
 
-An interactive drill tool for reading treble-clef notation. Each round presents a randomly generated note on a five-line staff (rendered with [VexFlow](https://github.com/0xfe/vexflow)) and lets the learner answer using their preferred system: solfege, letter names, numbered notation, or labeled piano keys. The interface supports both Chinese and English copy.
+An interactive drill tool for reading treble- and bass-clef notation. Each round presents a randomly generated note on a five-line staff (rendered with [VexFlow](https://github.com/0xfe/vexflow)) and lets the learner answer using their preferred system: solfege, letter names, numbered notation, or labeled piano keys. The interface supports both Chinese and English copy.
 
 ## Product Highlights
 
-- 🎼 **Single-focus drills** – One note, centered staff, instant feedback to build recognition speed.
+- 🎼 **Single-focus drills** – One note, centered staff, instant feedback to build recognition speed across both clefs.
 - 🔁 **Smart randomizer** – Prevents immediate repeats so learners see fresh prompts each round.
 - 🎯 **Adaptive feedback** – Correct answers advance automatically; wrong answers reveal the right solution and require a manual “Next” tap.
 - 🌐 **Localization** – Toggle between English and Chinese UI strings.

@@ -1,19 +1,25 @@
 import {
   type ChangeEvent,
+  type MouseEvent,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
+  useId,
 } from "react";
+import { Settings as SettingsIcon } from "lucide-react";
 import { Formatter, Renderer, Stave, StaveNote, Voice } from "vexflow";
 import type { Route } from "./+types/home";
 
 type AnswerMode = "solfege" | "letter" | "number" | "piano";
 type Language = "en" | "zh";
 
+type Clef = "treble" | "bass";
+
 type NoteDefinition = {
   id: string;
+  clef: Clef;
   key: string;
   solfegeIndex: number;
   letter: string;
@@ -21,24 +27,54 @@ type NoteDefinition = {
   piano: string;
 };
 
+type BaseNote = Omit<NoteDefinition, "id" | "clef">;
+
 const SOLFEGE_LABELS: Record<Language, string[]> = {
   en: ["Do", "Re", "Mi", "Fa", "So", "La", "Ti"],
   zh: ["哆", "来", "咪", "发", "唆", "拉", "西"],
 };
 
+const TREBLE_NOTES: BaseNote[] = [
+  { key: "g/3", solfegeIndex: 4, letter: "G", number: "5", piano: "G3" },
+  { key: "a/3", solfegeIndex: 5, letter: "A", number: "6", piano: "A3" },
+  { key: "b/3", solfegeIndex: 6, letter: "B", number: "7", piano: "B3" },
+  { key: "c/4", solfegeIndex: 0, letter: "C", number: "1", piano: "C4" },
+  { key: "d/4", solfegeIndex: 1, letter: "D", number: "2", piano: "D4" },
+  { key: "e/4", solfegeIndex: 2, letter: "E", number: "3", piano: "E4" },
+  { key: "f/4", solfegeIndex: 3, letter: "F", number: "4", piano: "F4" },
+  { key: "g/4", solfegeIndex: 4, letter: "G", number: "5", piano: "G4" },
+  { key: "a/4", solfegeIndex: 5, letter: "A", number: "6", piano: "A4" },
+  { key: "b/4", solfegeIndex: 6, letter: "B", number: "7", piano: "B4" },
+  { key: "c/5", solfegeIndex: 0, letter: "C", number: "1", piano: "C5" },
+  { key: "d/5", solfegeIndex: 1, letter: "D", number: "2", piano: "D5" },
+];
+
+const BASS_NOTES: BaseNote[] = [
+  { key: "e/2", solfegeIndex: 2, letter: "E", number: "3", piano: "E2" },
+  { key: "f/2", solfegeIndex: 3, letter: "F", number: "4", piano: "F2" },
+  { key: "g/2", solfegeIndex: 4, letter: "G", number: "5", piano: "G2" },
+  { key: "a/2", solfegeIndex: 5, letter: "A", number: "6", piano: "A2" },
+  { key: "b/2", solfegeIndex: 6, letter: "B", number: "7", piano: "B2" },
+  { key: "c/3", solfegeIndex: 0, letter: "C", number: "1", piano: "C3" },
+  { key: "d/3", solfegeIndex: 1, letter: "D", number: "2", piano: "D3" },
+  { key: "e/3", solfegeIndex: 2, letter: "E", number: "3", piano: "E3" },
+  { key: "f/3", solfegeIndex: 3, letter: "F", number: "4", piano: "F3" },
+  { key: "g/3", solfegeIndex: 4, letter: "G", number: "5", piano: "G3" },
+  { key: "a/3", solfegeIndex: 5, letter: "A", number: "6", piano: "A3" },
+  { key: "b/3", solfegeIndex: 6, letter: "B", number: "7", piano: "B3" },
+  { key: "c/4", solfegeIndex: 0, letter: "C", number: "1", piano: "C4" },
+];
+
+const annotateNotes = (clef: Clef, notes: BaseNote[]): NoteDefinition[] =>
+  notes.map((note) => ({
+    ...note,
+    clef,
+    id: `${clef}-${note.piano}`,
+  }));
+
 const NOTE_POOL: NoteDefinition[] = [
-  { id: "G3", key: "g/3", solfegeIndex: 4, letter: "G", number: "5", piano: "G3" },
-  { id: "A3", key: "a/3", solfegeIndex: 5, letter: "A", number: "6", piano: "A3" },
-  { id: "B3", key: "b/3", solfegeIndex: 6, letter: "B", number: "7", piano: "B3" },
-  { id: "C4", key: "c/4", solfegeIndex: 0, letter: "C", number: "1", piano: "C4" },
-  { id: "D4", key: "d/4", solfegeIndex: 1, letter: "D", number: "2", piano: "D4" },
-  { id: "E4", key: "e/4", solfegeIndex: 2, letter: "E", number: "3", piano: "E4" },
-  { id: "F4", key: "f/4", solfegeIndex: 3, letter: "F", number: "4", piano: "F4" },
-  { id: "G4", key: "g/4", solfegeIndex: 4, letter: "G", number: "5", piano: "G4" },
-  { id: "A4", key: "a/4", solfegeIndex: 5, letter: "A", number: "6", piano: "A4" },
-  { id: "B4", key: "b/4", solfegeIndex: 6, letter: "B", number: "7", piano: "B4" },
-  { id: "C5", key: "c/5", solfegeIndex: 0, letter: "C", number: "1", piano: "C5" },
-  { id: "D5", key: "d/5", solfegeIndex: 1, letter: "D", number: "2", piano: "D5" },
+  ...annotateNotes("bass", BASS_NOTES),
+  ...annotateNotes("treble", TREBLE_NOTES),
 ];
 
 const UI_STRINGS: Record<Language, {
@@ -57,10 +93,11 @@ const UI_STRINGS: Record<Language, {
   accuracy: string;
   questionLabel: string;
   idleHint: string;
+  close: string;
 }> = {
   en: {
     title: "Staff Reading Trainer",
-    tagline: "Build instant recognition with randomized treble clef drills.",
+    tagline: "Build instant recognition with randomized treble & bass clef drills.",
     prompt: "Which answer matches this note?",
     settings: "Settings",
     language: "Language",
@@ -79,10 +116,11 @@ const UI_STRINGS: Record<Language, {
     accuracy: "Accuracy",
     questionLabel: "Question",
     idleHint: "Tap an option below.",
+    close: "Close",
   },
   zh: {
     title: "五线谱阅读练习",
-    tagline: "随机高音谱号练习，快速锁定正确音名。",
+    tagline: "随机高音与低音谱号练习，快速锁定正确音名。",
     prompt: "这个音符对应什么？",
     settings: "设置",
     language: "语言",
@@ -101,6 +139,7 @@ const UI_STRINGS: Record<Language, {
     accuracy: "正确率",
     questionLabel: "题目",
     idleHint: "点击下面的选项。",
+    close: "关闭",
   },
 };
 
@@ -113,20 +152,28 @@ const ANSWER_MODE_LIST: AnswerMode[] = [
   "piano",
 ];
 
-const WHITE_PIANO_KEYS = NOTE_POOL.map((note) => ({
-  id: note.piano,
-  solfegeIndex: note.solfegeIndex,
-}));
+const WHITE_PIANO_KEYS = NOTE_POOL.reduce<{ id: string; solfegeIndex: number }[]>((keys, note) => {
+  if (!keys.some((entry) => entry.id === note.piano)) {
+    keys.push({ id: note.piano, solfegeIndex: note.solfegeIndex });
+  }
+  return keys;
+}, []);
 
 const BLACK_PIANO_KEYS = [
-  { id: "G#3", anchorIndex: 0 },
-  { id: "A#3", anchorIndex: 1 },
-  { id: "C#4", anchorIndex: 3 },
-  { id: "D#4", anchorIndex: 4 },
-  { id: "F#4", anchorIndex: 6 },
-  { id: "G#4", anchorIndex: 7 },
-  { id: "A#4", anchorIndex: 8 },
-  { id: "C#5", anchorIndex: 10 },
+  { id: "F#2", anchorIndex: 1 },
+  { id: "G#2", anchorIndex: 2 },
+  { id: "A#2", anchorIndex: 3 },
+  { id: "C#3", anchorIndex: 5 },
+  { id: "D#3", anchorIndex: 6 },
+  { id: "F#3", anchorIndex: 8 },
+  { id: "G#3", anchorIndex: 9 },
+  { id: "A#3", anchorIndex: 10 },
+  { id: "C#4", anchorIndex: 12 },
+  { id: "D#4", anchorIndex: 13 },
+  { id: "F#4", anchorIndex: 15 },
+  { id: "G#4", anchorIndex: 16 },
+  { id: "A#4", anchorIndex: 17 },
+  { id: "C#5", anchorIndex: 19 },
 ];
 
 const getAnswer = (note: NoteDefinition, mode: AnswerMode, language: Language) => {
@@ -197,7 +244,7 @@ export function meta({}: Route.MetaArgs) {
     {
       name: "description",
       content:
-        "Randomized treble clef drills with solfege, letter, numbered, or piano-key answers.",
+        "Randomized treble and bass clef drills with solfege, letter, numbered, or piano-key answers.",
     },
   ];
 }
@@ -215,6 +262,7 @@ export default function Home() {
   const [questionsServed, setQuestionsServed] = useState(1);
   const [answeredCount, setAnsweredCount] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const strings = UI_STRINGS[language];
 
   const correctAnswer = useMemo(
@@ -232,6 +280,14 @@ export default function Home() {
     setSelectedAnswer(null);
     setStatus("idle");
     setQuestionsServed((prev) => prev + 1);
+  }, []);
+
+  const closeSettings = useCallback(() => {
+    setIsSettingsOpen(false);
+  }, []);
+
+  const openSettings = useCallback(() => {
+    setIsSettingsOpen(true);
   }, []);
 
   useEffect(() => {
@@ -253,6 +309,19 @@ export default function Home() {
     };
   }, [goToNext, status]);
 
+  useEffect(() => {
+    if (!isSettingsOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeSettings();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [closeSettings, isSettingsOpen]);
+
   const handleAnswer = (value: string) => {
     if (status !== "idle") return;
     setSelectedAnswer(value);
@@ -273,7 +342,15 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-white px-4 py-8 text-slate-900">
       <div className="mx-auto flex max-w-5xl flex-col gap-6">
-        <header className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-100 backdrop-blur">
+        <header className="relative rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-100 backdrop-blur">
+          <button
+            type="button"
+            onClick={openSettings}
+            className="absolute right-6 top-6 inline-flex items-center justify-center rounded-full border border-slate-200/70 bg-white/80 p-2 text-slate-500 shadow-sm backdrop-blur focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 hover:text-slate-900"
+            aria-label={strings.settings}
+          >
+            <SettingsIcon className="h-5 w-5" aria-hidden="true" />
+          </button>
           <div className="flex flex-col gap-2">
             <p className="text-sm uppercase tracking-[0.2em] text-blue-500">
               {strings.title}
@@ -283,7 +360,7 @@ export default function Home() {
               {strings.prompt}
             </p>
           </div>
-          <div className="mt-6 grid gap-4 sm:grid-cols-3">
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
             <StatCard
               label={strings.questionLabel}
               value={`#${questionsServed}`}
@@ -293,31 +370,6 @@ export default function Home() {
               value={`${correctCount}/${answeredCount}`}
               helper={strings.accuracy + ` ${accuracy}%`}
             />
-            <div className="rounded-2xl border border-slate-200/70 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500">
-                {strings.settings}
-              </p>
-              <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-                <Selector
-                  label={strings.language}
-                  value={language}
-                  onChange={(event) => setLanguage(event.target.value as Language)}
-                  options={[
-                    { value: "en", label: "English" },
-                    { value: "zh", label: "中文" },
-                  ]}
-                />
-                <Selector
-                  label={strings.answerMode}
-                  value={answerMode}
-                  onChange={(event) => setAnswerMode(event.target.value as AnswerMode)}
-                  options={ANSWER_MODE_LIST.map((mode) => ({
-                    value: mode,
-                    label: strings.answerModes[mode],
-                  }))}
-                />
-              </div>
-            </div>
           </div>
         </header>
 
@@ -328,7 +380,7 @@ export default function Home() {
                 {strings.prompt}
               </div>
               <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-slate-50/60 px-4 py-6">
-                <StaffNote noteKey={currentNote.key} />
+                <StaffNote noteKey={currentNote.key} clef={currentNote.clef} />
               </div>
             </div>
 
@@ -377,6 +429,16 @@ export default function Home() {
             )}
           </div>
         </section>
+
+        <SettingsModal
+          open={isSettingsOpen}
+          onClose={closeSettings}
+          strings={strings}
+          language={language}
+          onLanguageChange={setLanguage}
+          answerMode={answerMode}
+          onAnswerModeChange={setAnswerMode}
+        />
       </div>
     </main>
   );
@@ -384,9 +446,10 @@ export default function Home() {
 
 type StaffNoteProps = {
   noteKey: string;
+  clef: Clef;
 };
 
-function StaffNote({ noteKey }: StaffNoteProps) {
+function StaffNote({ noteKey, clef }: StaffNoteProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -394,27 +457,40 @@ function StaffNote({ noteKey }: StaffNoteProps) {
     containerRef.current.innerHTML = "";
 
     const renderer = new Renderer(containerRef.current, Renderer.Backends.SVG);
-    renderer.resize(320, 140);
+    const svgWidth = 220;
+    const svgHeight = 200;
+    const staveWidth = 170;
+    const staveX = (svgWidth - staveWidth) / 2;
+    renderer.resize(svgWidth, svgHeight);
     const context = renderer.getContext();
     context.setBackgroundFillStyle("transparent");
 
-    const stave = new Stave(16, 20, 280);
-    stave.addClef("treble");
+    const stave = new Stave(staveX, 50, staveWidth, {
+      spacingBetweenLinesPx: 14,
+    });
+    stave.addClef(clef);
     stave.setContext(context).draw();
 
     const note = new StaveNote({
       keys: [noteKey],
       duration: "w",
-      clef: "treble",
+      clef,
     });
 
     // Use a 4/4 voice so the whole-note duration fits without overflow.
     const voice = new Voice({ numBeats: 4, beatValue: 4 }).addTickables([note]);
-    new Formatter().joinVoices([voice]).format([voice], 200);
+    new Formatter().joinVoices([voice]).format([voice], staveWidth - 40);
     voice.draw(context, stave);
-  }, [noteKey]);
+  }, [clef, noteKey]);
 
-  return <div ref={containerRef} aria-label="music staff" role="img" />;
+  return (
+    <div
+      ref={containerRef}
+      aria-label="music staff"
+      role="img"
+      className="music staff"
+    />
+  );
 }
 
 type AnswerButtonProps = {
@@ -484,6 +560,103 @@ function Selector<T extends string>({ label, value, onChange, options }: Selecto
         ))}
       </select>
     </label>
+  );
+}
+
+type SettingsModalProps = {
+  open: boolean;
+  onClose: () => void;
+  strings: Strings;
+  language: Language;
+  onLanguageChange: (value: Language) => void;
+  answerMode: AnswerMode;
+  onAnswerModeChange: (value: AnswerMode) => void;
+};
+
+function SettingsModal({
+  open,
+  onClose,
+  strings,
+  language,
+  onLanguageChange,
+  answerMode,
+  onAnswerModeChange,
+}: SettingsModalProps) {
+  const titleId = useId();
+  const bodyId = useId();
+
+  if (!open) return null;
+
+  const handleBackdropClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (event.target === event.currentTarget) {
+      onClose();
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      aria-describedby={bodyId}
+      onClick={handleBackdropClick}
+    >
+      <div
+        className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.15em] text-blue-500">
+              {strings.settings}
+            </p>
+            <h2 id={titleId} className="text-2xl font-semibold text-slate-900">
+              {strings.settings}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-slate-200 p-2 text-slate-500 hover:text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+            aria-label={`${strings.close} ${strings.settings}`}
+          >
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div id={bodyId} className="mt-6 flex flex-col gap-4">
+          <Selector
+            label={strings.language}
+            value={language}
+            onChange={(event) => onLanguageChange(event.target.value as Language)}
+            options={[
+              { value: "en", label: "English" },
+              { value: "zh", label: "中文" },
+            ]}
+          />
+          <Selector
+            label={strings.answerMode}
+            value={answerMode}
+            onChange={(event) =>
+              onAnswerModeChange(event.target.value as AnswerMode)
+            }
+            options={ANSWER_MODE_LIST.map((mode) => ({
+              value: mode,
+              label: strings.answerModes[mode],
+            }))}
+          />
+        </div>
+        <div className="mt-6 flex justify-end">
+          <button
+            type="button"
+            className="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+            onClick={onClose}
+          >
+            {strings.close}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

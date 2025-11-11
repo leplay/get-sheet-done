@@ -9,3 +9,14 @@ html,
 body {
   @apply bg-white;
 }
+
+.music.staff {
+  display: flex;
+  justify-content: center;
+}
+
+.music.staff svg {
+  display: block;
+  width: 220px;
+  height: 200px;
+}
