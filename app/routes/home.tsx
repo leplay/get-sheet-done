@@ -3,12 +3,21 @@ import {
   type MouseEvent,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   useId,
 } from "react";
-import { Settings as SettingsIcon } from "lucide-react";
+import {
+  CirclePause,
+  CirclePlay,
+  Clock12,
+  Clock3,
+  Clock6,
+  Clock9,
+  Settings as SettingsIcon,
+} from "lucide-react";
 import { Formatter, Renderer, Stave, StaveNote, Voice } from "vexflow";
 import type { Route } from "./+types/home";
 
@@ -99,6 +108,8 @@ const UI_STRINGS: Record<
     questionLabel: string;
     idleHint: string;
     close: string;
+    pauseTimer: string;
+    resumeTimer: string;
   }
 > = {
   en: {
@@ -125,6 +136,8 @@ const UI_STRINGS: Record<
     questionLabel: "Question",
     idleHint: "Tap an option below.",
     close: "Close",
+    pauseTimer: "Pause timer",
+    resumeTimer: "Continue timer",
   },
   zh: {
     title: "Get Sheet Done",
@@ -149,6 +162,8 @@ const UI_STRINGS: Record<
     questionLabel: "题目",
     idleHint: "点击下面的选项。",
     close: "关闭",
+    pauseTimer: "暂停计时",
+    resumeTimer: "继续计时",
   },
 };
 
@@ -266,6 +281,9 @@ const shuffle = (values: string[]) => {
   return copy;
 };
 
+const getNow = () =>
+  typeof performance !== "undefined" ? performance.now() : Date.now();
+
 export function meta({}: Route.MetaArgs) {
   return [
     { title: "Get Sheet Done! - 五线谱阅读练习 | Staff Reading Trainer" },
@@ -290,10 +308,18 @@ export default function Home() {
   const [answeredCount, setAnsweredCount] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isTimerPaused, setIsTimerPaused] = useState(false);
   const questionStartTimeRef = useRef<number | null>(null);
+  const elapsedBeforePauseRef = useRef(0);
   const [lastAnswerSeconds, setLastAnswerSeconds] = useState<number | null>(
     null,
   );
+  const resetTimer = useCallback(() => {
+    elapsedBeforePauseRef.current = 0;
+    questionStartTimeRef.current = getNow();
+    setIsTimerPaused(false);
+    setLastAnswerSeconds(null);
+  }, []);
   const strings = UI_STRINGS[language];
 
   const correctAnswer = useMemo(
@@ -334,6 +360,22 @@ export default function Home() {
     setIsSettingsOpen(true);
   }, []);
 
+  const toggleTimer = useCallback(() => {
+    if (status !== "idle") return;
+    setIsTimerPaused((previous) => {
+      if (previous) {
+        questionStartTimeRef.current = getNow();
+        return false;
+      }
+      if (questionStartTimeRef.current !== null) {
+        elapsedBeforePauseRef.current +=
+          getNow() - questionStartTimeRef.current;
+      }
+      questionStartTimeRef.current = null;
+      return true;
+    });
+  }, [status]);
+
   useEffect(() => {
     setSelectedAnswer(null);
     setStatus("idle");
@@ -369,11 +411,11 @@ export default function Home() {
   const handleAnswer = (value: string) => {
     if (status !== "idle") return;
     setSelectedAnswer(value);
-    if (questionStartTimeRef.current !== null) {
-      const elapsedSeconds =
-        (performance.now() - questionStartTimeRef.current) / 1000;
-      setLastAnswerSeconds(elapsedSeconds);
-    }
+    const elapsedMs =
+      (questionStartTimeRef.current !== null
+        ? getNow() - questionStartTimeRef.current
+        : 0) + elapsedBeforePauseRef.current;
+    setLastAnswerSeconds(elapsedMs / 1000);
     setAnsweredCount((prev) => prev + 1);
     if (value === correctAnswer) {
       setStatus("correct");
@@ -383,12 +425,11 @@ export default function Home() {
     }
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (status === "idle") {
-      questionStartTimeRef.current = performance.now();
-      setLastAnswerSeconds(null);
+      resetTimer();
     }
-  }, [answerMode, currentNote, language, status]);
+  }, [answerMode, currentNote, language, resetTimer, status]);
 
   const accuracy = useMemo(() => {
     if (answeredCount === 0) return 0;
@@ -444,6 +485,8 @@ export default function Home() {
               correctAnswer={correctAnswer}
               selected={selectedAnswer}
               answerTimeSeconds={lastAnswerSeconds}
+              onToggleTimer={toggleTimer}
+              isTimerPaused={isTimerPaused}
             />
 
             {answerMode === "piano" ? (
@@ -780,6 +823,8 @@ type FeedbackBannerProps = {
   correctAnswer: string;
   selected: string | null;
   answerTimeSeconds: number | null;
+  onToggleTimer: () => void;
+  isTimerPaused: boolean;
 };
 
 function FeedbackBanner({
@@ -788,6 +833,8 @@ function FeedbackBanner({
   correctAnswer,
   selected,
   answerTimeSeconds,
+  onToggleTimer,
+  isTimerPaused,
 }: FeedbackBannerProps) {
   let message = strings.idleHint;
   let style = "bg-slate-100 text-slate-700";
@@ -795,6 +842,8 @@ function FeedbackBanner({
     status !== "idle" && answerTimeSeconds != null
       ? `${answerTimeSeconds.toFixed(1)}s`
       : null;
+  const timerDisabled = status !== "idle";
+  const timerLabel = isTimerPaused ? strings.resumeTimer : strings.pauseTimer;
 
   if (status === "correct") {
     message = strings.correct;
@@ -810,14 +859,80 @@ function FeedbackBanner({
     <div className={`rounded-2xl px-4 py-3 text-sm font-medium ${style}`}>
       <div className="flex items-center justify-between gap-4">
         <span>{message}</span>
-        {formattedTime && (
-          <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-current">
-            {formattedTime}
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {formattedTime && (
+            <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-current">
+              {formattedTime}
+            </span>
+          )}
+          {status === "idle" && (
+            <TimerIconButton
+              isPaused={isTimerPaused}
+              onClick={onToggleTimer}
+              disabled={timerDisabled}
+              label={timerLabel}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
+}
+
+type TimerIconButtonProps = {
+  isPaused: boolean;
+  onClick: () => void;
+  disabled: boolean;
+  label: string;
+};
+
+function TimerIconButton({ isPaused, onClick, disabled, label }: TimerIconButtonProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      className="group relative inline-flex h-9 w-9 items-center justify-center text-current transition disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      <span className="sr-only">{label}</span>
+      {!isPaused ? (
+        <>
+          <AnimatedClockIcon
+            paused={isPaused}
+            className="pointer-events-none"
+          />
+        </>
+      ) : (
+        <CirclePause className="pointer-events-none h-5 w-5 text-rose-500" />
+      )}
+    </button>
+  );
+}
+
+const CLOCK_ICONS = [Clock12, Clock3, Clock6, Clock9];
+
+type AnimatedClockIconProps = {
+  paused: boolean;
+  className?: string;
+};
+
+function AnimatedClockIcon({ paused, className }: AnimatedClockIconProps) {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    if (paused) return;
+    const interval = window.setInterval(() => {
+      setIndex((prev) => (prev + 1) % CLOCK_ICONS.length);
+    }, 150);
+    return () => window.clearInterval(interval);
+  }, [paused]);
+
+  const Icon = CLOCK_ICONS[index] ?? Clock12;
+  const classes = className ? `${className} h-5 w-5` : "h-5 w-5";
+
+  return <Icon className={classes} aria-hidden="true" />;
 }
 
 type PianoKeyboardProps = {
