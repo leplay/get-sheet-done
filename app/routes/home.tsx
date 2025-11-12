@@ -290,6 +290,10 @@ export default function Home() {
   const [answeredCount, setAnsweredCount] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const questionStartTimeRef = useRef<number | null>(null);
+  const [lastAnswerSeconds, setLastAnswerSeconds] = useState<number | null>(
+    null,
+  );
   const strings = UI_STRINGS[language];
 
   const correctAnswer = useMemo(
@@ -365,6 +369,11 @@ export default function Home() {
   const handleAnswer = (value: string) => {
     if (status !== "idle") return;
     setSelectedAnswer(value);
+    if (questionStartTimeRef.current !== null) {
+      const elapsedSeconds =
+        (performance.now() - questionStartTimeRef.current) / 1000;
+      setLastAnswerSeconds(elapsedSeconds);
+    }
     setAnsweredCount((prev) => prev + 1);
     if (value === correctAnswer) {
       setStatus("correct");
@@ -373,6 +382,13 @@ export default function Home() {
       setStatus("incorrect");
     }
   };
+
+  useEffect(() => {
+    if (status === "idle") {
+      questionStartTimeRef.current = performance.now();
+      setLastAnswerSeconds(null);
+    }
+  }, [answerMode, currentNote, language, status]);
 
   const accuracy = useMemo(() => {
     if (answeredCount === 0) return 0;
@@ -427,6 +443,7 @@ export default function Home() {
               status={status}
               correctAnswer={correctAnswer}
               selected={selectedAnswer}
+              answerTimeSeconds={lastAnswerSeconds}
             />
 
             {answerMode === "piano" ? (
@@ -750,6 +767,7 @@ type FeedbackBannerProps = {
   status: "idle" | "correct" | "incorrect";
   correctAnswer: string;
   selected: string | null;
+  answerTimeSeconds: number | null;
 };
 
 function FeedbackBanner({
@@ -757,21 +775,35 @@ function FeedbackBanner({
   status,
   correctAnswer,
   selected,
+  answerTimeSeconds,
 }: FeedbackBannerProps) {
   let message = strings.idleHint;
   let style = "bg-slate-100 text-slate-700";
+  const formattedTime =
+    status !== "idle" && answerTimeSeconds != null
+      ? `${answerTimeSeconds.toFixed(1)}s`
+      : null;
 
   if (status === "correct") {
     message = strings.correct;
     style = "bg-green-100 text-green-900";
-  } else if (status === "incorrect" && selected) {
-    message = `${strings.incorrect} ${strings.correctAnswerLabel}: ${correctAnswer}`;
+  } else if (status === "incorrect") {
+    message = selected
+      ? `${strings.incorrect} ${strings.correctAnswerLabel}: ${correctAnswer}`
+      : strings.incorrect;
     style = "bg-rose-100 text-rose-900";
   }
 
   return (
     <div className={`rounded-2xl px-4 py-3 text-sm font-medium ${style}`}>
-      {message}
+      <div className="flex items-center justify-between gap-4">
+        <span>{message}</span>
+        {formattedTime && (
+          <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-current">
+            {formattedTime}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
