@@ -494,6 +494,18 @@ export default function Home() {
           answerMode={answerMode}
           onAnswerModeChange={setAnswerMode}
         />
+
+        <p className="pb-2 text-center text-xs text-slate-500">
+          Made by{" "}
+          <a
+            href="https://leplay.net/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-blue-600 hover:underline"
+          >
+            Leplay
+          </a>
+        </p>
       </div>
     </main>
   );
