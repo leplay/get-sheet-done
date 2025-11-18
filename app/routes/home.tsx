@@ -421,9 +421,9 @@ export default function Home() {
         : 0) + elapsedBeforePauseRef.current;
     const answerSeconds = elapsedMs / 1000;
     setLastAnswerSeconds(answerSeconds);
-    setAnswerTimes((prev) => [...prev, answerSeconds]);
     setAnsweredCount((prev) => prev + 1);
     if (value === correctAnswer) {
+      setAnswerTimes((prev) => [...prev, answerSeconds]);
       setStatus("correct");
       setCorrectCount((prev) => prev + 1);
     } else {
