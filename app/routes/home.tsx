@@ -110,6 +110,7 @@ const UI_STRINGS: Record<
     close: string;
     pauseTimer: string;
     resumeTimer: string;
+    avgAnswerTime: string;
   }
 > = {
   en: {
@@ -138,6 +139,7 @@ const UI_STRINGS: Record<
     close: "Close",
     pauseTimer: "Pause timer",
     resumeTimer: "Continue timer",
+    avgAnswerTime: "Avg. time",
   },
   zh: {
     title: "Get Sheet Done",
@@ -164,6 +166,7 @@ const UI_STRINGS: Record<
     close: "关闭",
     pauseTimer: "暂停计时",
     resumeTimer: "继续计时",
+    avgAnswerTime: "平均用时",
   },
 };
 
@@ -314,6 +317,7 @@ export default function Home() {
   const [lastAnswerSeconds, setLastAnswerSeconds] = useState<number | null>(
     null,
   );
+  const [answerTimes, setAnswerTimes] = useState<number[]>([]);
   const resetTimer = useCallback(() => {
     elapsedBeforePauseRef.current = 0;
     questionStartTimeRef.current = getNow();
@@ -415,7 +419,9 @@ export default function Home() {
       (questionStartTimeRef.current !== null
         ? getNow() - questionStartTimeRef.current
         : 0) + elapsedBeforePauseRef.current;
-    setLastAnswerSeconds(elapsedMs / 1000);
+    const answerSeconds = elapsedMs / 1000;
+    setLastAnswerSeconds(answerSeconds);
+    setAnswerTimes((prev) => [...prev, answerSeconds]);
     setAnsweredCount((prev) => prev + 1);
     if (value === correctAnswer) {
       setStatus("correct");
@@ -436,6 +442,12 @@ export default function Home() {
     return Math.round((correctCount / answeredCount) * 100);
   }, [answeredCount, correctCount]);
 
+  const averageAnswerTime = useMemo(() => {
+    if (answerTimes.length === 0) return 0;
+    const sum = answerTimes.reduce((acc, time) => acc + time, 0);
+    return sum / answerTimes.length;
+  }, [answerTimes]);
+
   return (
     <main className="min-h-screen bg-white px-4 py-8 text-slate-900">
       <div className="mx-auto flex max-w-5xl flex-col gap-6">
@@ -455,7 +467,7 @@ export default function Home() {
             <h1 className="text-3xl font-semibold">{strings.title}</h1>
             <p className="text-base text-slate-500">{strings.description}</p>
           </div>
-          <div className="mt-6 grid grid-cols-2 gap-4">
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
             <StatCard
               label={strings.questionLabel}
               value={`#${questionsServed}`}
@@ -464,6 +476,10 @@ export default function Home() {
               label={strings.stats}
               value={`${correctCount}/${answeredCount}`}
               helper={strings.accuracy + ` ${accuracy}%`}
+            />
+            <StatCard
+              label={strings.avgAnswerTime}
+              value={answerTimes.length > 0 ? `${averageAnswerTime.toFixed(1)}s` : "-"}
             />
           </div>
         </header>
